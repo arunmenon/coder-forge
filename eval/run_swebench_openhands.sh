@@ -24,14 +24,21 @@ MODEL_NAME="${MODEL_NAME:-${DEFAULT_MODEL_NAME:-}}"
 MODEL_API_KEY="${MODEL_API_KEY:-EMPTY}"
 EVAL_LIMIT="${EVAL_LIMIT:-50}"
 HARNESS="${HARNESS:-openhands}"
+# OpenHands runtime: docker | remote | local. Use WORKSPACE=remote when the pod can't run
+# Docker-in-Docker (RunPod pods usually can't) — tasks run in managed sandboxes, no local Docker.
+WORKSPACE="${WORKSPACE:-docker}"
 DATASET="${DATASET:-princeton-nlp/SWE-bench_Verified}"
 # Absolute so writes land here even after `pushd "$OPENHANDS_DIR"` below.
 RESULTS_DIR="${RESULTS_DIR:-$(pwd)/eval/results}"
 mkdir -p "$RESULTS_DIR"
 
-echo ">> Harness=$HARNESS  Model=$MODEL_NAME  Limit=$EVAL_LIMIT  Dataset=$DATASET"
-echo ">> Docker required (per-instance test execution). Checking..."
-docker info >/dev/null 2>&1 || { echo "Docker not running" >&2; exit 1; }
+echo ">> Harness=$HARNESS  Workspace=$WORKSPACE  Model=$MODEL_NAME  Limit=$EVAL_LIMIT"
+# Docker is only needed for LOCAL execution (HARNESS=mini, or OpenHands WORKSPACE=docker).
+if [[ "$HARNESS" == "mini" || "$WORKSPACE" == "docker" ]]; then
+  docker info >/dev/null 2>&1 || {
+    echo "ERROR: Docker not available. On a RunPod pod, set WORKSPACE=remote (managed sandboxes)" >&2
+    echo "       or run the eval on a Docker-capable box." >&2; exit 1; }
+fi
 
 if [[ "$HARNESS" == "mini" ]]; then
   # mini-swe-agent: simplest/cheapest path to a signal.
@@ -65,12 +72,20 @@ cat > "$LLM_CONFIG" <<EOF
 EOF
 echo ">> Wrote $LLM_CONFIG (-> $MODEL_ENDPOINT)"
 
+# WORKSPACE=remote runs tasks in All-Hands managed sandboxes (no local Docker). It needs the
+# remote-runtime credentials in your env — verify the exact var names for your OpenHands/benchmarks
+# version (historically RUNTIME_API_KEY + SANDBOX_REMOTE_RUNTIME_API_URL). The pod still serves the
+# model + orchestrates; only the per-task execution is offloaded.
+if [[ "$WORKSPACE" == "remote" && -z "${RUNTIME_API_KEY:-}" ]]; then
+  echo ">> NOTE: WORKSPACE=remote — ensure the managed-runtime creds (e.g. RUNTIME_API_KEY) are set." >&2
+fi
+
 pushd "$OPENHANDS_DIR" >/dev/null
 # Inference. Flags are NAMED (not positional). Default --agent-type is the standard
 # openhands.sdk.Agent (CodeActAgent no longer exists). Prints {"output_json": "..."}.
 uv run swebench-infer "$LLM_CONFIG" \
   --dataset "$DATASET" --split test \
-  --workspace docker --max-iterations 100 \
+  --workspace "$WORKSPACE" --max-iterations 100 \
   --n-limit "$EVAL_LIMIT" --num-workers 1 \
   | tee "$RESULTS_DIR/openhands_infer.log"
 # Pull the emitted output path, then score it (runs the repo test suites in Docker):
