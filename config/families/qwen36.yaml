@@ -34,6 +34,12 @@ serve:
 quantize: { q_bits: 4, q_group_size: 64 }
 
 train:
+  # EMPIRICAL BLOCKER (2026-06-27, on H200): naive 4-bit QLoRA OOMs. bitsandbytes does NOT
+  # quantize the multimodal Qwen3_5MoeForConditionalGeneration wrapper, so the model loads in
+  # ~full precision (~140GB) instead of ~20GB and OOMs at prepare_model_for_kbit_training. To
+  # train 3.6 you must 4-bit ONLY the language_model submodule (skip the vision tower, e.g.
+  # llm_int8_skip_modules / a custom quant config) or use a non-bnb path. Until that's solved,
+  # qwen36 training stays stub-gated. The standard 30B (qwen3_moe) QLoRAs cleanly — ship it first.
   lora:
     r: 16
     alpha: 32
