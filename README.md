@@ -73,6 +73,10 @@ coder-forge/
 Two base families are wired; switch with the `BASE` flag (selects config + model id
 + output dirs), e.g. `make baseline BASE=qwen36` or `make sft BASE=qwen36`.
 
+> **See [`RECIPES.md`](RECIPES.md)** for the full demarcation — what's shared vs
+> per-family (data pipeline is shared, recipe differs), the corpus mix per track, and
+> the exact VM runbook for each. That's the doc to open when you sit down at the VM.
+
 | | `qwen30` (default) | `qwen36` |
 | --- | --- | --- |
 | Model | Qwen3-Coder-30B-A3B | Qwen3.6-35B-A3B (verified real: 35B/3B, 256 experts, 30 DeltaNet + 10 attn, MTP; **73.4 SWE / 51.5 TB**, model claims) |
