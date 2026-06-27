@@ -1,0 +1,49 @@
+# Model-family profile — the SINGLE source of truth for everything qwen30-specific.
+# Consumed by Makefile, serve/*, quantize, eval, and config render (via scripts/family.*).
+id: qwen30
+slug: qwen3-coder-30b-a3b
+base_model: Qwen/Qwen3-Coder-30B-A3B-Instruct
+status: stable                        # stable | stub
+
+arch:
+  loader: AutoModelForCausalLM
+  moe: true
+  shared_expert: false
+  linear_attention: null              # null | deltanet
+  mtp: false
+  thinking: false                     # false | hybrid | true
+
+chat_template: tokenizer_default
+tool_call:
+  codec: qwen3_xml_dict               # qwen3_xml_dict -> args as dict | openai_string -> args JSON string
+
+serve:
+  tool_call_parser: qwen3_xml
+  reasoning_parser: null
+  enable_auto_tool_choice: true
+  max_model_len: 32768
+  gpu_memory_utilization: 0.92
+  min_vllm: null
+  sampling: { temperature: 0.7, top_p: 0.8, top_k: 20, repetition_penalty: 1.05 }
+
+quantize: { q_bits: 4, q_group_size: 64 }
+
+train:
+  lora:
+    r: 32
+    alpha: 64
+    target_strategy: moe_expert       # dense_linear | moe_expert | hybrid_linear_attention
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+    frozen_modules: [mlp.gate]        # MoE router — never adapt
+    full_ft_only: []
+  sequence_len: 16384
+  sample_packing: true
+  learning_rate: 1.0e-4
+  num_epochs: 3
+  seed: 42
+
+paths:
+  output_dir: outputs/{slug}-qlora
+  merged_dir: outputs/{slug}-merged
+  mlx_dir: models/{slug}-mlx-4bit
+  dataset_prepared: data/.axolotl_prepared-{id}

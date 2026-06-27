@@ -12,7 +12,7 @@ set -euo pipefail
 
 PYTHON="${PYTHON:-python3}"
 SMOKE_TEST="${SMOKE_TEST:-1}"
-CONFIG="${CONFIG:-config/qwen3_coder_30b_qlora.yaml}"
+FAMILY="${FAMILY:-qwen30}"
 
 echo ">> [1/4] GPU + deps"
 nvidia-smi --query-gpu=name,memory.total --format=csv || true
@@ -20,6 +20,11 @@ pip install -q -U pip
 pip install -q -r requirements-train.txt
 [[ -n "${HF_TOKEN:-}" ]] && huggingface-cli login --token "$HF_TOKEN" || \
   echo "   (set HF_TOKEN to auto-login for dataset/model access)"
+
+# Validate the family profile and render its Axolotl config.
+bash scripts/family.sh doctor "$FAMILY"
+PYTHONPATH=src $PYTHON -m coder_forge.configs.render "$FAMILY" >/dev/null
+CONFIG="config/.generated/$FAMILY.yaml"
 
 echo ">> [2/4] Data"
 if [[ ! -f data/sft_train.jsonl ]]; then
@@ -43,6 +48,6 @@ if [[ "$SMOKE_TEST" == "1" ]]; then
   echo ">> [4/4] Smoke test passed. Re-run with SMOKE_TEST=0 for the full SFT."
 else
   echo ">> [3/4] FULL SFT"
-  bash train/run_sft.sh
+  CONFIG="$CONFIG" bash train/run_sft.sh
   echo ">> [4/4] Done — merged weights ready to serve (make eval) or quantize (to_mlx.sh)."
 fi

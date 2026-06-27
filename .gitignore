@@ -10,3 +10,6 @@ __pycache__/
 *.egg-info/
 .ruff_cache/
 .pytest_cache/
+
+# Generated Axolotl configs (build artifacts; reproduce with `make config`)
+config/.generated/

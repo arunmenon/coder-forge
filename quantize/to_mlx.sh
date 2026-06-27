@@ -10,11 +10,17 @@
 # buys format reliability, not raw coding accuracy.
 set -euo pipefail
 
-SOURCE="${1:-outputs/qwen3-coder-30b-a3b-merged}"   # HF dir or hub id
-OUT_DIR="${OUT_DIR:-models/qwen3-coder-30b-a3b-mlx-4bit}"
-Q_BITS="${Q_BITS:-4}"
-Q_GROUP="${Q_GROUP:-64}"
 PYTHON="${PYTHON:-python3}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Capture explicit user overrides before pulling profile defaults (user env wins over profile).
+_user_out="${OUT_DIR:-}"; _user_bits="${Q_BITS:-}"; _user_group="${Q_GROUP:-}"
+if [[ -n "${FAMILY:-}" ]]; then
+  eval "$(PYTHON="$PYTHON" bash "$HERE/scripts/family.sh" export "$FAMILY")"
+fi
+SOURCE="${1:-${MERGED_DIR:-outputs/qwen3-coder-30b-a3b-merged}}"   # HF dir or hub id
+OUT_DIR="${_user_out:-${MLX_DIR:-models/qwen3-coder-30b-a3b-mlx-4bit}}"
+Q_BITS="${_user_bits:-${Q_BITS:-4}}"
+Q_GROUP="${_user_group:-${Q_GROUP_SIZE:-64}}"
 
 if ! $PYTHON -c "import mlx_lm" 2>/dev/null; then
   echo "Install MLX: pip install mlx-lm" >&2

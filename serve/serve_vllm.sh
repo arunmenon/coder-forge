@@ -1,28 +1,32 @@
 #!/usr/bin/env bash
-# Serve a model behind an OpenAI-compatible endpoint with Qwen agentic tool-calling.
-# Use for: Phase 0 baseline (pass the HF base id) and Phase 3 re-eval (pass the merged dir).
-# Runs on the RunPod GPU pod. The endpoint is what OpenHands points at.
+# Serve a model behind an OpenAI-compatible endpoint with the FAMILY's agentic tool-calling.
+# Every family-specific serving knob (tool-call parser, reasoning parser, sampling, context,
+# min vLLM) comes from config/families/<FAMILY>.yaml — no hardcoded parser. Run on the GPU pod.
 #
-#   serve/serve_vllm.sh                                   # serves the base model
-#   serve/serve_vllm.sh outputs/qwen3-coder-30b-a3b-merged  # serves your fine-tune
+#   FAMILY=qwen30 serve/serve_vllm.sh                        # serves the base model
+#   FAMILY=qwen30 serve/serve_vllm.sh outputs/<slug>-merged  # serves your fine-tune
 set -euo pipefail
 
-MODEL="${1:-Qwen/Qwen3-Coder-30B-A3B-Instruct}"
-PORT="${PORT:-8000}"
-# Native context is 256K; agentic eval rarely needs >32K and long ctx costs KV memory.
-MAX_LEN="${MAX_LEN:-32768}"
-# bf16 30B (~61GB) fits one 80GB GPU. On a 48GB card, add: --quantization bitsandbytes
-GPU_UTIL="${GPU_UTIL:-0.92}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FAMILY="${FAMILY:-qwen30}"
+# Pull the family profile into the environment (BASE_MODEL, TOOL_CALL_PARSER, ...).
+eval "$(PYTHON="${PYTHON:-python3}" bash "$HERE/scripts/family.sh" export "$FAMILY")"
 
-echo ">> Serving $MODEL on :$PORT (max_model_len=$MAX_LEN)"
-# --tool-call-parser qwen3_xml is vLLM's current parser for Qwen3-Coder (streaming-
-# capable; Qwen3-Coder-30B-A3B-Instruct is listed under qwen3_xml in vLLM's tool_calling
-# docs). The older qwen3_coder parser is non-streaming and can emit broken tool output.
-# `hermes` is for plain Qwen3 (e.g. Qwen3-8B), NOT Qwen3-Coder. No --reasoning-parser
-# needed (Instruct model); the tokenizer ships a tool-compatible chat template.
-vllm serve "$MODEL" \
-  --port "$PORT" \
-  --max-model-len "$MAX_LEN" \
-  --gpu-memory-utilization "$GPU_UTIL" \
-  --enable-auto-tool-choice \
-  --tool-call-parser qwen3_xml
+MODEL="${1:-$BASE_MODEL}"
+PORT="${PORT:-8000}"
+
+# Assert the family's minimum vLLM, when declared (qwen36 needs >=0.17.0 for the DeltaNet arch).
+if [[ -n "${MIN_VLLM:-}" ]]; then
+  have=$(vllm --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+  if [[ -n "$have" ]] && [[ "$(printf '%s\n%s\n' "$MIN_VLLM" "$have" | sort -V | head -1)" != "$MIN_VLLM" ]]; then
+    echo "ERROR: family $FAMILY needs vLLM >= $MIN_VLLM, found $have" >&2; exit 1
+  fi
+fi
+
+ARGS=( --port "$PORT" --max-model-len "$MAX_MODEL_LEN" --gpu-memory-utilization "$GPU_MEMORY_UTILIZATION" )
+[[ "${ENABLE_AUTO_TOOL_CHOICE:-0}" == "1" ]] && ARGS+=( --enable-auto-tool-choice )
+[[ -n "${TOOL_CALL_PARSER:-}" ]] && ARGS+=( --tool-call-parser "$TOOL_CALL_PARSER" )
+[[ -n "${REASONING_PARSER:-}" ]] && ARGS+=( --reasoning-parser "$REASONING_PARSER" )
+
+echo ">> Serving $MODEL on :$PORT  (family=$FAMILY parser=${TOOL_CALL_PARSER:-none} max_len=$MAX_MODEL_LEN)"
+vllm serve "$MODEL" "${ARGS[@]}"

@@ -37,7 +37,7 @@ run on the VM** for each base-model family. Switch tracks with `BASE=qwen30|qwen
 | Execution-free data | low-weight breadth OK | **drop / downweight** |
 | RL emphasis | optional Phase 2b | **primary** — verifier + best-of-N + GRPO on executable envs |
 | Tooling | mature (Axolotl / vLLM / MLX stable) | version-gated (**vLLM ≥0.17.0**, latest transformers / llama.cpp; multimodal `…ForConditionalGeneration` wrapper) |
-| Config | `config/qwen3_coder_30b_qlora.yaml` ✅ runnable | `config/qwen36_35b_a3b_qlora.stub.yaml` ⚠️ verify-before-run |
+| Profile | `config/families/qwen30.yaml` ✅ stable | `config/families/qwen36.yaml` ⚠️ status: stub (`make doctor` gates it) |
 | Status | **ship this first** | deliberate **later upgrade** — gate on a baseline first |
 
 ---
@@ -105,7 +105,7 @@ make baseline-terminal BASE=qwen36 TB_LIMIT=25
 #    - python -c "...named_modules()" → fill the real DeltaNet LoRA target names
 #    - decide MTP/packing + thinking-mode
 make data DATA_ARGS="--max-per-source 3000" # small verified-only mix
-make sft BASE=qwen36                       # LIGHT SFT (config/qwen36_35b_a3b_qlora.stub.yaml)
+make sft FAMILY=qwen36                      # renders config/.generated/qwen36.yaml from the profile, then LIGHT SFT
 make eval BASE=qwen36 EVAL_LIMIT=50
 # 2. Then the real lever: verifier + best-of-N + GRPO/RFT on executable envs.
 ```
@@ -122,3 +122,23 @@ make eval BASE=qwen36 EVAL_LIMIT=50
   confirm their schema with `--inspect`.
 - ⚠️ **Track B training:** gated on the stub blockers above — serving 3.6 is confirmed,
   fine-tuning its arch is bleeding-edge.
+
+---
+
+## Adding a model family (the payoff)
+
+Per-family knowledge lives in **one file**: `config/families/<id>.yaml`. The Makefile, serve,
+quantize, eval, and config generation all read it via `scripts/family.sh` — there are no
+family-specific lines anywhere else.
+
+To add `qwen37` (or a non-Qwen family):
+1. `cp config/families/qwen30.yaml config/families/qwen37.yaml` and edit the ~8 deltas
+   (`base_model`, `slug`, LoRA `r`/`target_modules`/`target_strategy`, `learning_rate`,
+   `num_epochs`, `sample_packing`, `serve.tool_call_parser`, `serve.sampling`).
+2. `make doctor FAMILY=qwen37` — validates the profile (packing vs MTP, router frozen,
+   full-FT-only modules not LoRA-targeted) before any GPU spend.
+3. `make sft FAMILY=qwen37` / `make serve-cloud FAMILY=qwen37` — the recipes run as-is.
+
+A non-Qwen dense family (e.g. GLM/Llama with the `llama3_json` parser) sets
+`tool_call.codec: openai_string`, `lora.target_strategy: dense_linear`, `frozen_modules: []`.
+Still one file, zero code edits.

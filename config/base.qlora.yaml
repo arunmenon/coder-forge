@@ -1,0 +1,43 @@
+# Model-AGNOSTIC Axolotl QLoRA defaults (the shared ~80%). Per-family values come from
+# config/families/<id>.yaml via render.py. Do not put any family-specific value here.
+trust_remote_code: true
+
+load_in_4bit: true
+adapter: qlora
+bnb_4bit_quant_type: nf4
+bnb_4bit_use_double_quant: true
+lora_dropout: 0.05
+
+# Use the model's own chat template so the trained format == the served format, and the
+# preserved structured tool_calls render into the model's native <tool_call> spans.
+chat_template: tokenizer_default
+datasets:
+  - path: data/sft_train.jsonl
+    type: chat_template
+    field_messages: messages
+    roles_to_train: ["assistant"]   # train only on the agent's actions (incl. <tool_call> spans)
+    train_on_eos: turn              # mask EOS on non-assistant (observation) turns
+val_set_size: 0.02
+
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+optimizer: adamw_torch_fused
+lr_scheduler: cosine
+warmup_ratio: 0.03
+max_grad_norm: 1.0
+
+bf16: true
+tf32: true
+flash_attention: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+logging_steps: 1
+save_strategy: steps
+save_steps: 50
+save_total_limit: 3
+evals_per_epoch: 1
+
+special_tokens:
+  pad_token: "<|endoftext|>"

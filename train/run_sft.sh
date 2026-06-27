@@ -6,7 +6,9 @@
 set -euo pipefail
 
 PYTHON="${PYTHON:-python3}"
-CONFIG="${CONFIG:-config/qwen3_coder_30b_qlora.yaml}"
+# Generated from the family profile by `make config` (or `make sft`, which renders first).
+CONFIG="${CONFIG:-config/.generated/qwen30.yaml}"
+[[ -f "$CONFIG" ]] || { echo "ERROR: $CONFIG missing — run: make config FAMILY=<id>" >&2; exit 1; }
 # Derive the adapter dir from the config's own output_dir (real YAML parse — M9; a grep
 # miss must NOT fall back to a path that mismatches what Axolotl writes). Override via OUTPUT_DIR=.
 if [[ -z "${OUTPUT_DIR:-}" ]]; then

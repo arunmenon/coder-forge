@@ -52,8 +52,8 @@ matching directory.
 
 ```
 coder-forge/
-├── config/qwen3_coder_30b_qlora.yaml       # Axolotl QLoRA SFT config (30B, runnable)
-├── config/qwen36_35b_a3b_qlora.stub.yaml   # 3.6-35B-A3B SFT config (STUB — see Base families)
+├── config/families/<id>.yaml               # model-family profiles (single source of truth per family)
+├── config/base.qlora.yaml                  # model-agnostic Axolotl defaults; render -> .generated/<id>.yaml
 ├── data/prepare_swe_sft.py                 # Stage-1 SWE corpus (multi-source: Nebius/SWE-Hero/Open-SWE/SWE-Gym)
 ├── data/prepare_terminal_sft.py            # Stage-2 terminal corpus (LiteCoder/TerminalTraj -> jsonl)
 ├── train/run_sft.sh                        # launch QLoRA SFT on a single GPU

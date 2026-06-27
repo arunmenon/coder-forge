@@ -1,0 +1,53 @@
+# Model-family profile for Qwen3.6-35B-A3B. status: stub — SERVING the quant is confirmed,
+# but TRAINING the Gated-DeltaNet + MTP arch is bleeding-edge. `make doctor FAMILY=qwen36`
+# enforces the gates below before any GPU spend. See docs/REFACTOR.md §3 and the notes here.
+id: qwen36
+slug: qwen36-35b-a3b
+base_model: Qwen/Qwen3.6-35B-A3B
+status: stub
+
+arch:
+  loader: AutoModelForConditionalGeneration   # natively multimodal wrapper, NOT plain CausalLM
+  moe: true
+  shared_expert: true                  # 1 shared expert, always active
+  linear_attention: deltanet           # 30 of 40 layers are Gated DeltaNet
+  mtp: true                            # incompatible with sample_packing
+  thinking: hybrid                     # 73.4 SWE is a thinking-mode number
+
+chat_template: tokenizer_default       # TODO: confirm 3.6 template differs from 30B before a real run
+tool_call:
+  codec: qwen3_xml_dict                # TODO: verify 3.6's emitted tool format
+
+serve:
+  tool_call_parser: qwen3_xml          # TODO: confirm 3.6's parser (likely differs from 30B)
+  reasoning_parser: null               # set when serving in thinking mode
+  enable_auto_tool_choice: true
+  max_model_len: 32768
+  gpu_memory_utilization: 0.92
+  min_vllm: "0.17.0"                   # older vLLM rejects the DeltaNet arch
+  sampling: { temperature: 0.7, top_p: 0.8, top_k: 20, repetition_penalty: 1.05 }
+
+quantize: { q_bits: 4, q_group_size: 64 }
+
+train:
+  lora:
+    r: 16
+    alpha: 32
+    target_strategy: hybrid_linear_attention
+    # Re-derive from named_modules() before running. Only the 10 attn layers have q/k/v/o_proj;
+    # the 30 DeltaNet layers need in_proj_qkvz/in_proj_ba/out_proj. conv1d/A_log/dt_bias are
+    # full-FT-only (not LoRA-able).
+    target_modules: [q_proj, k_proj, v_proj, o_proj, in_proj_qkvz, in_proj_ba, out_proj]
+    frozen_modules: [mlp.gate, shared_expert_gate]
+    full_ft_only: [conv1d, A_log, dt_bias]
+  sequence_len: 16384
+  sample_packing: false                # MTP head conflicts with packing
+  learning_rate: 5.0e-5
+  num_epochs: 1                        # light — a strong base degrades under heavy imitation
+  seed: 42
+
+paths:
+  output_dir: outputs/{slug}-qlora
+  merged_dir: outputs/{slug}-merged
+  mlx_dir: models/{slug}-mlx-4bit
+  dataset_prepared: data/.axolotl_prepared-{id}
