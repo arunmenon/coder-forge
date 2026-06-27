@@ -52,19 +52,40 @@ matching directory.
 
 ```
 coder-forge/
-├── config/qwen3_coder_30b_qlora.yaml   # Axolotl QLoRA SFT config
-├── data/prepare_nebius_sft.py          # download + filter + format trajectories
-├── train/run_sft.sh                    # launch QLoRA SFT on a single GPU
-├── train/runpod_bootstrap.sh           # one-command pod setup + smoke test
-├── serve/serve_vllm.sh                 # cloud OpenAI endpoint (base or tuned), Qwen tool parser
-├── serve/serve_mlx_mac.sh              # local Mac MLX OpenAI endpoint
-├── eval/run_swebench_openhands.sh      # SWE-bench Verified via OpenHands / mini (subset support)
-├── eval/README.md                      # eval methodology + contamination notes
-├── quantize/to_mlx.sh                  # HF → MLX 4-bit (high-quality) for the Mac
-├── requirements-train.txt              # RunPod-side training deps
-├── requirements-eval.txt               # harness/eval deps
-└── .env.example                        # endpoints + API keys
+├── config/qwen3_coder_30b_qlora.yaml       # Axolotl QLoRA SFT config (30B, runnable)
+├── config/qwen36_35b_a3b_qlora.stub.yaml   # 3.6-35B-A3B SFT config (STUB — see Base families)
+├── data/prepare_nebius_sft.py              # download + filter + format trajectories
+├── train/run_sft.sh                        # launch QLoRA SFT on a single GPU
+├── train/runpod_bootstrap.sh               # one-command pod setup + smoke test
+├── serve/serve_vllm.sh                     # cloud OpenAI endpoint (base or tuned), Qwen tool parser
+├── serve/serve_mlx_mac.sh                  # local Mac MLX OpenAI endpoint
+├── eval/run_swebench_openhands.sh          # SWE-bench Verified via OpenHands / mini (subset)
+├── eval/run_terminalbench.sh               # Terminal-Bench via the `tb` harness (subset)
+├── eval/README.md                          # eval methodology + contamination notes
+├── quantize/to_mlx.sh                      # HF → MLX 4-bit (high-quality) for the Mac
+├── requirements-train.txt                  # RunPod-side training deps
+├── requirements-eval.txt                   # harness/eval deps
+└── .env.example                            # endpoints + API keys
 ```
+
+## Base families — `BASE=qwen30` (default) | `qwen36`
+
+Two base families are wired; switch with the `BASE` flag (selects config + model id
++ output dirs), e.g. `make baseline BASE=qwen36` or `make sft BASE=qwen36`.
+
+| | `qwen30` (default) | `qwen36` |
+| --- | --- | --- |
+| Model | Qwen3-Coder-30B-A3B | Qwen3.6-35B-A3B (verified real: 35B/3B, 256 experts, 30 DeltaNet + 10 attn, MTP; **73.4 SWE / 51.5 TB**, model claims) |
+| Serving on Mac | ✅ mature (MLX/llama.cpp) | ✅ confirmed locally, but needs **vLLM ≥0.17.0** / latest llama.cpp |
+| Fine-tuning | ✅ runnable today | ⚠️ **stub only** — bleeding-edge; multimodal `…ForConditionalGeneration` wrapper, LoRA must target the 30 DeltaNet layers (`in_proj_qkvz/in_proj_ba/out_proj`), MTP conflicts with packing |
+
+**Recommendation (verified 2026-06-27): ship the `qwen30` pipeline first; treat
+`qwen36` as a deliberate later upgrade.** A ~73% base has little headroom (heavy
+imitation SFT risks *degrading* it), and its training stack is version-gated and
+partly experimental. The high-value work for 3.6 is RL/RFT — prove that out cheaply
+on the 30B first. **Do run the gate experiment on the 3.6 base now** (cheap, no
+training): `make baseline BASE=qwen36` + `make baseline-terminal BASE=qwen36`, in
+**both thinking and non-thinking modes**, to quantify the real gap.
 
 ## Quickstart
 

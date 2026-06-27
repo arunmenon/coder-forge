@@ -4,6 +4,9 @@
 vllm>=0.6.2
 mini-swe-agent>=1.0
 swebench>=2.1
+terminal-bench>=0.2        # `tb` CLI for the Terminal-Bench harness (eval/run_terminalbench.sh)
 datasets>=2.19
 openai>=1.40
 # MLX (Phase 4-5) is Mac-only — install there with: pip install mlx-lm
+# NOTE: to SERVE/eval Qwen3.6-35B-A3B you need vllm>=0.17.0 (older builds reject the
+# Gated-DeltaNet arch); GGUF needs the latest llama.cpp build.
