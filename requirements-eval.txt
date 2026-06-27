@@ -1,0 +1,9 @@
+# Phase 0/3 — serving + eval.
+# vLLM runs on the GPU pod (Phase 3 serving). mini-swe-agent is the lightweight
+# eval harness; OpenHands is cloned separately (see eval/README.md), not pip-installed.
+vllm>=0.6.2
+mini-swe-agent>=1.0
+swebench>=2.1
+datasets>=2.19
+openai>=1.40
+# MLX (Phase 4-5) is Mac-only — install there with: pip install mlx-lm

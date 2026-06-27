@@ -1,0 +1,8 @@
+.env
+outputs/
+models/
+data/*.jsonl
+data/.axolotl_prepared/
+eval/results/
+__pycache__/
+*.pyc

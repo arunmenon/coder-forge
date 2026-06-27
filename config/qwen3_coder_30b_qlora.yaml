@@ -1,0 +1,79 @@
+# QLoRA SFT cold-start for Qwen3-Coder-30B-A3B on agentic OpenHands trajectories.
+# Target rig: 1× H100 80GB SXM or 1× RTX PRO 6000 96GB (single GPU). A 48GB card
+# works if you drop sequence_len to <=8192. Run with: train/run_sft.sh
+#
+# Axolotl dataset-format keys evolve across releases — if training errors on the
+# dataset block, check the chat_template docs for your installed Axolotl version.
+# TODO: verify against `axolotl` version you pip-install.
+
+base_model: Qwen/Qwen3-Coder-30B-A3B-Instruct
+trust_remote_code: true
+
+# --- 4-bit QLoRA ---
+load_in_4bit: true
+adapter: qlora
+bnb_4bit_quant_type: nf4
+bnb_4bit_use_double_quant: true
+
+lora_r: 32
+lora_alpha: 64
+lora_dropout: 0.05
+# Target all linear layers (incl. MoE expert + router projections). For a MoE the
+# expert FFNs are the bulk of params; lora_target_linear covers them.
+lora_target_linear: true
+
+# --- data ---
+# Use the model's built-in chat template so the trained format == the served
+# format (critical for harness alignment). Input is OpenAI {"messages":[...]}.
+chat_template: tokenizer_default
+datasets:
+  - path: data/sft_resolved.jsonl
+    type: chat_template
+    # {role, content} is Axolotl's default mapping for OpenAI messages, so no
+    # message_property_mappings needed. (Legacy message_field_role/content are deprecated.)
+    field_messages: messages
+    # Only compute loss on assistant turns — we imitate the agent's actions, not
+    # the (huge) tool observations fed back to it. train_on_eos masks EOS on other turns.
+    roles_to_train: ["assistant"]
+    train_on_eos: turn
+
+dataset_prepared_path: data/.axolotl_prepared
+val_set_size: 0.02
+output_dir: outputs/qwen3-coder-30b-a3b-qlora
+
+# --- sequence / packing ---
+# Agentic traces average ~18.5K tokens. 16384 + packing is a good 80GB default;
+# raise toward 32768 only if VRAM allows, lower to 8192 on a 48GB card.
+sequence_len: 16384
+sample_packing: true
+pad_to_sequence_len: true
+
+# --- optimizer / schedule (papers use lr 5e-5 full-FT; QLoRA tolerates higher) ---
+micro_batch_size: 1
+gradient_accumulation_steps: 16
+num_epochs: 3
+optimizer: adamw_torch_fused
+lr_scheduler: cosine
+learning_rate: 0.0001
+warmup_ratio: 0.03
+weight_decay: 0.0
+max_grad_norm: 1.0
+
+# --- precision / memory ---
+bf16: true
+tf32: true
+flash_attention: true
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+# --- logging / checkpoints ---
+logging_steps: 1
+save_strategy: steps
+save_steps: 50
+save_total_limit: 3
+evals_per_epoch: 1
+# wandb_project: coding-agent-finetune   # uncomment to track
+
+special_tokens:
+  pad_token: "<|endoftext|>"

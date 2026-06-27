@@ -1,0 +1,12 @@
+# Phase 1-2 (RunPod GPU pod) — data prep + QLoRA SFT.
+# Install on the pod; flash-attn builds against the pod's CUDA/torch.
+axolotl[flash-attn,deepspeed]
+transformers>=4.51
+datasets>=2.19
+accelerate>=0.34
+peft>=0.12
+bitsandbytes>=0.43
+trl>=0.9
+huggingface_hub>=0.24
+# flash-attn is pulled by the axolotl extra; if the wheel build fails on your
+# CUDA, install a matching prebuilt wheel for your torch/cuda version instead.
