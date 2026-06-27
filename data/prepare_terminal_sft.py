@@ -41,8 +41,10 @@ ROLE_NORMALIZE = {
 # Known sources -> their conversation column + format. Unlisted sources auto-detect.
 SOURCE_REGISTRY = {
     "Lite-Coder/LiteCoder-Terminal-SFT": {"field": "conversations", "format": "sharegpt"},
+    "m-a-p/TerminalTraj": {"field": "messages", "format": "openai"},  # 20K on Hub (verified)
     # Add verified entries as you confirm their schema with --inspect, e.g.:
     #   "<termigen-hf-id>": {"field": "messages", "format": "openai", "resolved_field": "..."},
+    # yoonholee/terminalbench-trajectories needs a custom adapter (steps + agent/reward filter).
 }
 
 

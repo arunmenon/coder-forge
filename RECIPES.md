@@ -47,11 +47,14 @@ run on the VM** for each base-model family. Switch tracks with `BASE=qwen30|qwen
 The trajectory **pool is identical** for both families (execution-verified agentic
 traces). What changes is the **mix and amount**, not the source data.
 
-| Stage | Data | Prep script | Used by |
+| Stage | Wired sources (verified schema, pick via `--sources`) | Prep script | Used by |
 |---|---|---|---|
-| **Stage 1 — SWE** | Nebius `SWE-rebench-openhands-trajectories` resolved (~32K) | `data/prepare_nebius_sft.py` ✅ | both |
-| **Stage 2 — Terminal** | `LiteCoder-Terminal-SFT` (11.3K, ShareGPT) + more via `--sources` | `data/prepare_terminal_sft.py` ✅ | both (for Terminal-Bench) |
-| **Skill prior** | `nvidia/Nemotron-SFT-SWE-v2` agentless split | (optional) ⏳ TODO | Track A mainly |
+| **Stage 1 — SWE** | `nebius/SWE-rebench-openhands` (default ~32K) · `nvidia/SWE-Hero` (34K) · `nvidia/Open-SWE-Traces` (openhands cfg, 207K) · `SWE-Gym/OpenHands-SFT` (491, format-align) | `data/prepare_swe_sft.py` ✅ | both |
+| **Stage 2 — Terminal** | `Lite-Coder/LiteCoder-Terminal-SFT` (11.3K) · `m-a-p/TerminalTraj` (20K) | `data/prepare_terminal_sft.py` ✅ | both (Terminal-Bench) |
+| **Not yet wired (need a custom adapter)** | `yoonholee/terminalbench-trajectories` (`steps` + agent/reward filter) · `nvidia/Nemotron-SFT-SWE-v2` agentless (not parquet-indexed) | — ⏳ | Recipe-A scale / skill-prior |
+
+> Recipe-A SWE mix (the doc's recommended default), in one command:
+> `make data DATA_ARGS="--sources nebius/SWE-rebench-openhands-trajectories nvidia/SWE-Hero-openhands-trajectories nvidia/Open-SWE-Traces SWE-Gym/OpenHands-SFT-Trajectories --max-examples 12000"`
 
 **Curation — exactly what the prep scripts do (no over-claiming):**
 - **Stage-1 (Nebius):** keeps `resolved` trajectories (within-run recovery is preserved),

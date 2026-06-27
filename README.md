@@ -54,8 +54,8 @@ matching directory.
 coder-forge/
 ├── config/qwen3_coder_30b_qlora.yaml       # Axolotl QLoRA SFT config (30B, runnable)
 ├── config/qwen36_35b_a3b_qlora.stub.yaml   # 3.6-35B-A3B SFT config (STUB — see Base families)
-├── data/prepare_nebius_sft.py              # Stage-1 SWE corpus (Nebius -> messages jsonl)
-├── data/prepare_terminal_sft.py            # Stage-2 terminal corpus (LiteCoder/TermiGen -> jsonl)
+├── data/prepare_swe_sft.py                 # Stage-1 SWE corpus (multi-source: Nebius/SWE-Hero/Open-SWE/SWE-Gym)
+├── data/prepare_terminal_sft.py            # Stage-2 terminal corpus (LiteCoder/TerminalTraj -> jsonl)
 ├── train/run_sft.sh                        # launch QLoRA SFT on a single GPU
 ├── train/runpod_bootstrap.sh               # one-command pod setup + smoke test
 ├── serve/serve_vllm.sh                     # cloud OpenAI endpoint (base or tuned), Qwen tool parser

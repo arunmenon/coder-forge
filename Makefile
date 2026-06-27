@@ -48,7 +48,7 @@ baseline-terminal eval-terminal:
 	DEFAULT_MODEL_NAME=$(BASE_MODEL) TB_LIMIT=$(TB_LIMIT) bash eval/run_terminalbench.sh
 
 data:
-	$(PYTHON) data/prepare_nebius_sft.py --output data/sft_resolved.jsonl $(DATA_ARGS)
+	$(PYTHON) data/prepare_swe_sft.py --output data/sft_resolved.jsonl $(DATA_ARGS)
 	$(build_train)
 
 data-terminal:

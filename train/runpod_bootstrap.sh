@@ -10,6 +10,7 @@
 # when the pod stops. Run this from the finetune/ dir on the volume.
 set -euo pipefail
 
+PYTHON="${PYTHON:-python3}"
 SMOKE_TEST="${SMOKE_TEST:-1}"
 CONFIG="${CONFIG:-config/qwen3_coder_30b_qlora.yaml}"
 
@@ -21,17 +22,18 @@ pip install -q -r requirements-train.txt
   echo "   (set HF_TOKEN to auto-login for dataset/model access)"
 
 echo ">> [2/4] Data"
-if [[ ! -f data/sft_resolved.jsonl ]]; then
+if [[ ! -f data/sft_train.jsonl ]]; then
   # Skip if you rsync'd the jsonl up from your machine instead.
-  python data/prepare_nebius_sft.py --output data/sft_resolved.jsonl \
+  $PYTHON data/prepare_swe_sft.py --output data/sft_resolved.jsonl \
     ${MAX_EXAMPLES:+--max-examples "$MAX_EXAMPLES"}
+  cat $(ls data/sft_resolved.jsonl data/sft_terminal.jsonl 2>/dev/null) > data/sft_train.jsonl
 fi
-TOTAL=$(wc -l < data/sft_resolved.jsonl)
-echo "   $TOTAL resolved trajectories available"
+TOTAL=$(wc -l < data/sft_train.jsonl)
+echo "   $TOTAL training trajectories available"
 
 if [[ "$SMOKE_TEST" == "1" ]]; then
   echo ">> [3/4] SMOKE TEST — 20 examples, 10 steps (validates the full train->merge path)"
-  head -n 20 data/sft_resolved.jsonl > data/sft_smoke.jsonl
+  head -n 20 data/sft_train.jsonl > data/sft_smoke.jsonl
   # Override dataset + cap steps via Axolotl CLI; cheap end-to-end check.
   accelerate launch -m axolotl.cli.train "$CONFIG" \
     --datasets.0.path data/sft_smoke.jsonl \
