@@ -76,6 +76,7 @@ def export_env(family: str) -> dict:
         "MAX_MODEL_LEN": p["serve"]["max_model_len"],
         "GPU_MEMORY_UTILIZATION": p["serve"]["gpu_memory_utilization"],
         "MIN_VLLM": _fmt(p["serve"].get("min_vllm")),
+        "EXTRA_ARGS": json.dumps(p["serve"].get("extra_args", [])),
         "Q_BITS": p["quantize"]["q_bits"],
         "Q_GROUP_SIZE": p["quantize"]["q_group_size"],
         "SAMPLING_JSON": json.dumps(p["serve"]["sampling"]),

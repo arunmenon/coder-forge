@@ -30,6 +30,11 @@ ARGS=( --port "$PORT" --max-model-len "$MAX_MODEL_LEN" --gpu-memory-utilization 
 [[ "${ENABLE_AUTO_TOOL_CHOICE:-0}" == "1" ]] && ARGS+=( --enable-auto-tool-choice )
 [[ -n "${TOOL_CALL_PARSER:-}" ]] && ARGS+=( --tool-call-parser "$TOOL_CALL_PARSER" )
 [[ -n "${REASONING_PARSER:-}" ]] && ARGS+=( --reasoning-parser "$REASONING_PARSER" )
+# Per-family extra flags from the profile (e.g. qwen36's --mamba-ssm-cache-dtype float16).
+if [[ -n "${EXTRA_ARGS:-}" && "$EXTRA_ARGS" != "[]" ]]; then
+  while IFS= read -r _a; do ARGS+=( "$_a" ); done \
+    < <(printf '%s' "$EXTRA_ARGS" | "${PYTHON:-python3}" -c "import json,sys;[print(x) for x in json.load(sys.stdin)]")
+fi
 
 echo ">> Serving $MODEL on :$PORT  (family=$FAMILY parser=${TOOL_CALL_PARSER:-none} max_len=$MAX_MODEL_LEN)"
 vllm serve "$MODEL" "${ARGS[@]}"

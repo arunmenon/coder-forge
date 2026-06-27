@@ -14,17 +14,21 @@ arch:
   mtp: true                            # incompatible with sample_packing
   thinking: hybrid                     # 73.4 SWE is a thinking-mode number
 
-chat_template: tokenizer_default       # TODO: confirm 3.6 template differs from 30B before a real run
+chat_template: tokenizer_default
 tool_call:
-  codec: qwen3_xml_dict                # TODO: verify 3.6's emitted tool format
+  codec: qwen3_xml_dict                # canonical dict args; 3.6's qwen3_coder parser wants the dict
 
 serve:
-  tool_call_parser: qwen3_xml          # TODO: confirm 3.6's parser (likely differs from 30B)
-  reasoning_parser: null               # set when serving in thinking mode
+  tool_call_parser: qwen3_coder        # VERIFIED 2026-06-27: 3.6 uses qwen3_coder (NOT the 30B's
+                                       # qwen3_xml; qwen3_xml is only the NVFP4/DGX recipe). Omitting
+                                       # the parser makes tool_calls fail SILENTLY.
+  reasoning_parser: qwen3              # 3.6 is hybrid-thinking; official recipe sets --reasoning-parser qwen3
   enable_auto_tool_choice: true
-  max_model_len: 32768
+  max_model_len: 32768                 # eval context (model max is 262144)
   gpu_memory_utilization: 0.92
-  min_vllm: "0.17.0"                   # older vLLM rejects the DeltaNet arch
+  min_vllm: "0.19.0"                   # HF card recommends >=0.19 (recipes lists >=0.17 as the floor)
+  # Critical: keep the Gated-DeltaNet/SSM state in fp16 — fp8 SSM cache = silent garbage.
+  extra_args: ["--mamba-ssm-cache-dtype", "float16"]
   sampling: { temperature: 0.7, top_p: 0.8, top_k: 20, repetition_penalty: 1.05 }
 
 quantize: { q_bits: 4, q_group_size: 64 }
