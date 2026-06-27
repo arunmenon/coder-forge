@@ -27,7 +27,7 @@ lora_target_linear: true
 # format (critical for harness alignment). Input is OpenAI {"messages":[...]}.
 chat_template: tokenizer_default
 datasets:
-  - path: data/sft_resolved.jsonl
+  - path: data/sft_resolved.jsonl       # Stage 1 — SWE (prepare_nebius_sft.py)
     type: chat_template
     # {role, content} is Axolotl's default mapping for OpenAI messages, so no
     # message_property_mappings needed. (Legacy message_field_role/content are deprecated.)
@@ -36,6 +36,12 @@ datasets:
     # the (huge) tool observations fed back to it. train_on_eos masks EOS on other turns.
     roles_to_train: ["assistant"]
     train_on_eos: turn
+  # Stage 2 — Terminal (uncomment after `make data-terminal`; see RECIPES.md mix).
+  # - path: data/sft_terminal.jsonl
+  #   type: chat_template
+  #   field_messages: messages
+  #   roles_to_train: ["assistant"]
+  #   train_on_eos: turn
 
 dataset_prepared_path: data/.axolotl_prepared
 val_set_size: 0.02

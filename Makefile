@@ -1,7 +1,7 @@
 # Phase runner for the local agentic-coding fine-tune pipeline.
 # Switch base model family with BASE=qwen30 (default) or BASE=qwen36.
 # Override knobs inline, e.g.:  make baseline EVAL_LIMIT=50  /  make sft BASE=qwen36
-.PHONY: help baseline baseline-terminal data sft eval eval-terminal quantize serve-cloud serve-mac
+.PHONY: help baseline baseline-terminal data data-terminal sft eval eval-terminal quantize serve-cloud serve-mac
 
 BASE ?= qwen30
 
@@ -25,7 +25,8 @@ help:
 	@echo "Phases:"
 	@echo "  make baseline           Phase 0  SWE-bench Verified on the BASE model (local endpoint ok)"
 	@echo "  make baseline-terminal  Phase 0  Terminal-Bench on the BASE model"
-	@echo "  make data               Phase 1  Download + filter Nebius trajectories -> SFT jsonl"
+	@echo "  make data               Phase 1  Stage-1 SWE corpus (Nebius -> SFT jsonl)"
+	@echo "  make data-terminal      Phase 1  Stage-2 terminal corpus (LiteCoder/TermiGen -> jsonl)"
 	@echo "  make sft                Phase 2  QLoRA SFT (CONFIG=$(CONFIG))"
 	@echo "  make eval               Phase 3  SWE-bench on the fine-tune (set MODEL_* to it)"
 	@echo "  make eval-terminal      Phase 3  Terminal-Bench on the fine-tune"
@@ -41,6 +42,9 @@ baseline-terminal eval-terminal:
 
 data:
 	python data/prepare_nebius_sft.py --output data/sft_resolved.jsonl $(DATA_ARGS)
+
+data-terminal:
+	python data/prepare_terminal_sft.py --output data/sft_terminal.jsonl $(TERMINAL_ARGS)
 
 sft:
 	CONFIG=$(CONFIG) MERGED_DIR=$(MERGED_DIR) bash train/run_sft.sh

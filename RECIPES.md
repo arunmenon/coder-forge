@@ -50,7 +50,7 @@ traces). What changes is the **mix and amount**, not the source data.
 | Stage | Data | Prep script | Used by |
 |---|---|---|---|
 | **Stage 1 — SWE** | Nebius `SWE-rebench-openhands-trajectories` resolved (~32K) | `data/prepare_nebius_sft.py` ✅ | both |
-| **Stage 2 — Terminal** | `LiteCoder-Terminal-SFT` (11.3K) + `TermiGen` (3.3K) | `data/prepare_terminal_sft.py` ⏳ TODO | both (for Terminal-Bench) |
+| **Stage 2 — Terminal** | `LiteCoder-Terminal-SFT` (11.3K, ShareGPT) + more via `--sources` | `data/prepare_terminal_sft.py` ✅ | both (for Terminal-Bench) |
 | **Skill prior** | `nvidia/Nemotron-SFT-SWE-v2` agentless split | (optional) ⏳ TODO | Track A mainly |
 
 **Curation (both tracks, in prep):** drop <20-step trivial + anti-cheating/shortcut
@@ -78,7 +78,9 @@ non-thinking → the **same corpus** works.
 cp .env.example .env                      # MODEL_* → base for the gate, then your tune
 make baseline EVAL_LIMIT=50               # gate: base SWE-bench number
 make baseline-terminal TB_LIMIT=25        # gate: base Terminal-Bench number
-make data DATA_ARGS="--max-examples 8000" # Stage-1 corpus (+ Stage-2 when prep lands)
+make data DATA_ARGS="--max-examples 8000" # Stage-1 SWE corpus -> data/sft_resolved.jsonl
+make data-terminal                        # Stage-2 terminal corpus -> data/sft_terminal.jsonl
+# then uncomment the Stage-2 datasets: entry in config/qwen3_coder_30b_qlora.yaml
 make sft                                  # QLoRA SFT (config/qwen3_coder_30b_qlora.yaml)
 make eval EVAL_LIMIT=50                   # measure the delta (same harness!)
 make quantize && make serve-mac           # ship to the Mac
@@ -104,9 +106,11 @@ make eval BASE=qwen36 EVAL_LIMIT=50
 
 ## What's runnable today vs pending
 
-- ✅ **Runnable now:** Track A end-to-end (Nebius Stage-1 SFT → eval → quantize → serve);
-  gate experiments for **both** tracks (SWE + Terminal-Bench) against a local endpoint.
-- ⏳ **Pending data scripts:** `data/prepare_terminal_sft.py` (Stage-2 terminal corpus),
-  agentless skill-prior prep. Track A's primary (SWE) stage does not need them.
+- ✅ **Runnable now:** Track A end-to-end including the **2-stage corpus** (SWE +
+  terminal) → SFT → eval → quantize → serve; gate experiments for **both** tracks
+  (SWE + Terminal-Bench) against a local endpoint.
+- ⏳ **Pending data scripts:** agentless skill-prior prep (optional, Track A). Add more
+  terminal sources to Stage-2 via `prepare_terminal_sft.py --sources <id> ...` once you
+  confirm their schema with `--inspect`.
 - ⚠️ **Track B training:** gated on the stub blockers above — serving 3.6 is confirmed,
   fine-tuning its arch is bleeding-edge.
