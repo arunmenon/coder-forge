@@ -14,14 +14,15 @@ SOURCE="${1:-outputs/qwen3-coder-30b-a3b-merged}"   # HF dir or hub id
 OUT_DIR="${OUT_DIR:-models/qwen3-coder-30b-a3b-mlx-4bit}"
 Q_BITS="${Q_BITS:-4}"
 Q_GROUP="${Q_GROUP:-64}"
+PYTHON="${PYTHON:-python3}"
 
-if ! python -c "import mlx_lm" 2>/dev/null; then
+if ! $PYTHON -c "import mlx_lm" 2>/dev/null; then
   echo "Install MLX: pip install mlx-lm" >&2
   exit 1
 fi
 
 echo ">> Quantizing $SOURCE -> $OUT_DIR (${Q_BITS}-bit, group ${Q_GROUP})"
-python -m mlx_lm convert \
+$PYTHON -m mlx_lm convert \
   --hf-path "$SOURCE" \
   --mlx-path "$OUT_DIR" \
   --quantize \

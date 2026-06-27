@@ -6,8 +6,9 @@ set -euo pipefail
 
 MODEL_DIR="${1:-models/qwen3-coder-30b-a3b-mlx-4bit}"
 PORT="${PORT:-8080}"
+PYTHON="${PYTHON:-python3}"
 
-if ! python -c "import mlx_lm" 2>/dev/null; then
+if ! $PYTHON -c "import mlx_lm" 2>/dev/null; then
   echo "Install MLX: pip install mlx-lm" >&2
   exit 1
 fi
@@ -21,4 +22,4 @@ if [[ "${RAISE_WIRED_LIMIT:-1}" == "1" ]]; then
 fi
 
 echo ">> Serving $MODEL_DIR on :$PORT"
-python -m mlx_lm server --model "$MODEL_DIR" --port "$PORT"
+$PYTHON -m mlx_lm server --model "$MODEL_DIR" --port "$PORT"

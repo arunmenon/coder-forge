@@ -58,7 +58,7 @@ lora_target_modules:
 
 chat_template: tokenizer_default     # TODO: confirm 3.6 template vs 30B
 datasets:
-  - path: data/sft_resolved.jsonl
+  - path: data/sft_train.jsonl       # Track B: rebuild light (small --max-examples, drop exec-free)
     type: chat_template
     field_messages: messages
     roles_to_train: ["assistant"]

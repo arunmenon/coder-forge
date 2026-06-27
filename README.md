@@ -71,8 +71,10 @@ coder-forge/
 
 ## Base families — `BASE=qwen30` (default) | `qwen36`
 
-Two base families are wired; switch with the `BASE` flag (selects config + model id
-+ output dirs), e.g. `make baseline BASE=qwen36` or `make sft BASE=qwen36`.
+Two base families are wired; switch with the `BASE` flag, e.g. `make sft BASE=qwen36`.
+`BASE` selects the **training config, output dirs, and serve-cloud model id**. For
+**eval**, the model is taken from `MODEL_*` in `.env` (point it at whatever you're
+serving); `BASE` only supplies a fallback model id when `.env` doesn't set one.
 
 > **See [`RECIPES.md`](RECIPES.md)** for the full demarcation — what's shared vs
 > per-family (data pipeline is shared, recipe differs), the corpus mix per track, and

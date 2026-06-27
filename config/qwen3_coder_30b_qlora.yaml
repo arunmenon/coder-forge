@@ -18,30 +18,31 @@ bnb_4bit_use_double_quant: true
 lora_r: 32
 lora_alpha: 64
 lora_dropout: 0.05
-# Target all linear layers (incl. MoE expert + router projections). For a MoE the
-# expert FFNs are the bulk of params; lora_target_linear covers them.
-lora_target_linear: true
+# Explicit targets — do NOT use lora_target_linear:true here, it would also adapt the
+# MoE router `mlp.gate` (a Linear), which destabilizes routing. `gate_proj` below is the
+# EXPERT MLP gate (safe), NOT the router. Router stays frozen. (datasets doc §9.)
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
 
 # --- data ---
 # Use the model's built-in chat template so the trained format == the served
 # format (critical for harness alignment). Input is OpenAI {"messages":[...]}.
 chat_template: tokenizer_default
 datasets:
-  - path: data/sft_resolved.jsonl       # Stage 1 — SWE (prepare_nebius_sft.py)
+  # Canonical training file built by the Makefile: `make data` writes Stage-1 (SWE),
+  # `make data-terminal` APPENDS Stage-2 (terminal) — both land in sft_train.jsonl, so
+  # including terminal data needs no config edit, just running both make targets.
+  - path: data/sft_train.jsonl
     type: chat_template
-    # {role, content} is Axolotl's default mapping for OpenAI messages, so no
-    # message_property_mappings needed. (Legacy message_field_role/content are deprecated.)
-    field_messages: messages
-    # Only compute loss on assistant turns — we imitate the agent's actions, not
-    # the (huge) tool observations fed back to it. train_on_eos masks EOS on other turns.
-    roles_to_train: ["assistant"]
-    train_on_eos: turn
-  # Stage 2 — Terminal (uncomment after `make data-terminal`; see RECIPES.md mix).
-  # - path: data/sft_terminal.jsonl
-  #   type: chat_template
-  #   field_messages: messages
-  #   roles_to_train: ["assistant"]
-  #   train_on_eos: turn
+    field_messages: messages          # {role,content[,tool_calls]} — Axolotl's default mapping
+    roles_to_train: ["assistant"]     # train only on the agent's actions (incl. <tool_call> spans)
+    train_on_eos: turn                # mask EOS on non-assistant (observation) turns
 
 dataset_prepared_path: data/.axolotl_prepared
 val_set_size: 0.02

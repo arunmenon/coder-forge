@@ -16,12 +16,17 @@ set -euo pipefail
 [[ -f .env ]] && set -a && source .env && set +a
 
 MODEL_ENDPOINT="${MODEL_ENDPOINT:?set MODEL_ENDPOINT}"
-MODEL_NAME="${MODEL_NAME:?set MODEL_NAME}"
+# .env wins; else fall back to the BASE family's default model id (DEFAULT_MODEL_NAME
+# is passed by the Makefile per BASE). For a local server, MODEL_NAME must match what
+# the server advertises — set it in .env.
+MODEL_NAME="${MODEL_NAME:-${DEFAULT_MODEL_NAME:-}}"
+: "${MODEL_NAME:?set MODEL_NAME in .env (or use a BASE that provides a default)}"
 MODEL_API_KEY="${MODEL_API_KEY:-EMPTY}"
 EVAL_LIMIT="${EVAL_LIMIT:-50}"
 HARNESS="${HARNESS:-openhands}"
 DATASET="${DATASET:-princeton-nlp/SWE-bench_Verified}"
-RESULTS_DIR="${RESULTS_DIR:-eval/results}"
+# Absolute so writes land here even after `pushd "$OPENHANDS_DIR"` below.
+RESULTS_DIR="${RESULTS_DIR:-$(pwd)/eval/results}"
 mkdir -p "$RESULTS_DIR"
 
 echo ">> Harness=$HARNESS  Model=$MODEL_NAME  Limit=$EVAL_LIMIT  Dataset=$DATASET"

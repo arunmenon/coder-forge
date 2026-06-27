@@ -53,10 +53,15 @@ traces). What changes is the **mix and amount**, not the source data.
 | **Stage 2 — Terminal** | `LiteCoder-Terminal-SFT` (11.3K, ShareGPT) + more via `--sources` | `data/prepare_terminal_sft.py` ✅ | both (for Terminal-Bench) |
 | **Skill prior** | `nvidia/Nemotron-SFT-SWE-v2` agentless split | (optional) ⏳ TODO | Track A mainly |
 
-**Curation (both tracks, in prep):** drop <20-step trivial + anti-cheating/shortcut
-traces; **KEEP failure-recovery / imperfect traces** (do NOT strict success-filter);
-≤3 trajectories per instance; decontaminate vs SWE-bench Verified + Terminal-Bench eval
-tasks. (Verified data-strategy finding, 2026-06-27.)
+**Curation — exactly what the prep scripts do (no over-claiming):**
+- **Stage-1 (Nebius):** keeps `resolved` trajectories (within-run recovery is preserved),
+  caps `--max-per-instance 3`, applies `--min-steps` / `--max-steps`, and
+  **decontaminates** instance_ids against SWE-bench Verified by default (`--no-decontaminate`
+  to skip). 
+- **Stage-2 (terminal):** keeps **all** traces incl. failure-recovery (no success-only
+  filter — verified finding), drops trivially short runs (`--min-assistant-turns`), dedups.
+- **NOT yet automated (honest):** anti-cheat/shortcut detection (dataset-specific `TODO`
+  hook) and exact files/lines-edited bounds. Don't assume these are applied.
 
 - **Track A mix (heavy):** full Stage 1 + Stage 2 (+ agentless skill prior), ~2–3 : 1
   SWE : terminal. SFT is the main lever, so use the large mix.
@@ -78,10 +83,9 @@ non-thinking → the **same corpus** works.
 cp .env.example .env                      # MODEL_* → base for the gate, then your tune
 make baseline EVAL_LIMIT=50               # gate: base SWE-bench number
 make baseline-terminal TB_LIMIT=25        # gate: base Terminal-Bench number
-make data DATA_ARGS="--max-examples 8000" # Stage-1 SWE corpus -> data/sft_resolved.jsonl
-make data-terminal                        # Stage-2 terminal corpus -> data/sft_terminal.jsonl
-# then uncomment the Stage-2 datasets: entry in config/qwen3_coder_30b_qlora.yaml
-make sft                                  # QLoRA SFT (config/qwen3_coder_30b_qlora.yaml)
+make data DATA_ARGS="--max-examples 8000" # Stage-1 SWE   -> sft_resolved.jsonl + rebuilds sft_train.jsonl
+make data-terminal                        # Stage-2 term  -> sft_terminal.jsonl + rebuilds sft_train.jsonl
+make sft                                  # trains on data/sft_train.jsonl (mix, no config edit needed)
 make eval EVAL_LIMIT=50                   # measure the delta (same harness!)
 make quantize && make serve-mac           # ship to the Mac
 ```

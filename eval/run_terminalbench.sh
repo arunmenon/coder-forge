@@ -17,7 +17,8 @@ set -euo pipefail
 [[ -f .env ]] && set -a && source .env && set +a
 
 MODEL_ENDPOINT="${MODEL_ENDPOINT:?set MODEL_ENDPOINT (e.g. http://localhost:8080/v1)}"
-MODEL_NAME="${MODEL_NAME:?set MODEL_NAME}"
+MODEL_NAME="${MODEL_NAME:-${DEFAULT_MODEL_NAME:-}}"   # .env wins; else BASE family default
+: "${MODEL_NAME:?set MODEL_NAME in .env (or use a BASE that provides a default)}"
 MODEL_API_KEY="${MODEL_API_KEY:-EMPTY}"
 TB_LIMIT="${TB_LIMIT:-25}"
 TB_DATASET="${TB_DATASET:-terminal-bench-core}"

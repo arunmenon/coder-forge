@@ -56,6 +56,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--split", default="train")
     parser.add_argument("--output", type=Path, default=Path("data/sft_terminal.jsonl"))
+    parser.add_argument("--append", action="store_true", help="Append to --output instead of overwriting (for mixing into a Stage-1 file).")
     parser.add_argument(
         "--inspect",
         metavar="DATASET_ID",
@@ -107,38 +108,52 @@ def detect_field_and_format(columns: list[str], dataset_id: str) -> tuple[str, s
     )
 
 
-def turn_to_role_content(turn: dict, fmt: str) -> tuple[str, object] | None:
-    """Pull (raw_role, content) out of one turn in either ShareGPT or OpenAI shape."""
+def normalize_turn(turn: dict, fmt: str):
+    """Return (role, content, tool_calls, tool_call_id) from a ShareGPT or OpenAI turn."""
     if not isinstance(turn, dict):
         return None
     if fmt == "sharegpt" or ("from" in turn and "value" in turn):
-        return turn.get("from"), turn.get("value")
-    content = turn.get("content")
-    if not content and turn.get("tool_calls"):
-        content = json.dumps(turn["tool_calls"], ensure_ascii=False)
-    return turn.get("role"), content
+        raw_role, content, tool_calls, tool_call_id = turn.get("from"), turn.get("value"), None, None
+    else:
+        raw_role = turn.get("role")
+        content = turn.get("content")
+        tool_calls = turn.get("tool_calls")
+        tool_call_id = turn.get("tool_call_id")
+    role = ROLE_NORMALIZE.get(raw_role)
+    if role is None:
+        return None
+    return role, content, tool_calls, tool_call_id
 
 
-def to_openai_messages(turns, fmt: str, max_chars: int) -> list[dict] | None:
-    """Normalize a conversation to OpenAI messages; None if no assistant turn to learn from."""
+def to_openai_messages(turns, fmt: str, max_chars: int):
+    """Normalize a conversation to OpenAI messages, PRESERVING structured tool calls.
+
+    Returns (messages, n_assistant_turns) or (None, 0) if no assistant turn.
+    """
     messages = []
     assistant_turns = 0
     for turn in turns or []:
-        pair = turn_to_role_content(turn, fmt)
-        if pair is None:
+        parsed = normalize_turn(turn, fmt)
+        if parsed is None:
             continue
-        raw_role, content = pair
-        role = ROLE_NORMALIZE.get(raw_role)
-        if role is None or content is None:
-            continue
+        role, content, tool_calls, tool_call_id = parsed
+        if content is None:
+            content = ""
         if not isinstance(content, str):
             content = json.dumps(content, ensure_ascii=False)
         if max_chars and len(content) > max_chars:
             content = content[:max_chars] + "\n...[truncated]"
+        msg = {"role": role, "content": content}
         if role == "assistant":
             assistant_turns += 1
-        messages.append({"role": role, "content": content})
-    return messages if assistant_turns else None, assistant_turns
+            if tool_calls:  # keep structured calls so the chat template renders <tool_call>
+                msg["tool_calls"] = tool_calls
+        elif role == "tool" and tool_call_id:
+            msg["tool_call_id"] = tool_call_id
+        if not content and not msg.get("tool_calls"):
+            continue
+        messages.append(msg)
+    return (messages if assistant_turns else None), assistant_turns
 
 
 def inspect(dataset_id: str, split: str) -> None:
@@ -163,7 +178,7 @@ def main() -> None:
     total_written = 0
     per_source_counts: dict[str, int] = {}
 
-    with args.output.open("w", encoding="utf-8") as out_file:
+    with args.output.open("a" if args.append else "w", encoding="utf-8") as out_file:
         for dataset_id in args.sources:
             dataset = load_dataset_or_exit(dataset_id, args.split)
             field, fmt = detect_field_and_format(dataset.column_names, dataset_id)
