@@ -2,7 +2,11 @@
 outputs/
 models/
 data/*.jsonl
-data/.axolotl_prepared/
+data/*.manifest.json
+data/.axolotl_prepared*
 eval/results/
 __pycache__/
 *.pyc
+*.egg-info/
+.ruff_cache/
+.pytest_cache/

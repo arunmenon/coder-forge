@@ -25,8 +25,8 @@ echo ">> [2/4] Data"
 if [[ ! -f data/sft_train.jsonl ]]; then
   # Skip if you rsync'd the jsonl up from your machine instead.
   $PYTHON data/prepare_swe_sft.py --output data/sft_resolved.jsonl \
-    ${MAX_EXAMPLES:+--max-examples "$MAX_EXAMPLES"}
-  cat $(ls data/sft_resolved.jsonl data/sft_terminal.jsonl 2>/dev/null) > data/sft_train.jsonl
+    ${MAX_PER_SOURCE:+--max-per-source "$MAX_PER_SOURCE"}
+  PYTHON=$PYTHON bash scripts/build_train.sh data/sft_train.jsonl
 fi
 TOTAL=$(wc -l < data/sft_train.jsonl)
 echo "   $TOTAL training trajectories available"

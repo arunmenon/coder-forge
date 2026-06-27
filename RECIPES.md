@@ -54,7 +54,8 @@ traces). What changes is the **mix and amount**, not the source data.
 | **Not yet wired (need a custom adapter)** | `yoonholee/terminalbench-trajectories` (`steps` + agent/reward filter) · `nvidia/Nemotron-SFT-SWE-v2` agentless (not parquet-indexed) | — ⏳ | Recipe-A scale / skill-prior |
 
 > Recipe-A SWE mix (the doc's recommended default), in one command:
-> `make data DATA_ARGS="--sources nebius/SWE-rebench-openhands-trajectories nvidia/SWE-Hero-openhands-trajectories nvidia/Open-SWE-Traces SWE-Gym/OpenHands-SFT-Trajectories --max-examples 12000"`
+> `make data DATA_ARGS="--sources nebius/SWE-rebench-openhands-trajectories nvidia/SWE-Hero-openhands-trajectories nvidia/Open-SWE-Traces SWE-Gym/OpenHands-SFT-Trajectories --max-per-source 4000"`
+> (per-source quota — each source contributes up to 4000, so the mix is real; `--max-total` is the global ceiling.)
 
 **Curation — exactly what the prep scripts do (no over-claiming):**
 - **Stage-1 (Nebius):** keeps `resolved` trajectories (within-run recovery is preserved),
@@ -86,7 +87,7 @@ non-thinking → the **same corpus** works.
 cp .env.example .env                      # MODEL_* → base for the gate, then your tune
 make baseline EVAL_LIMIT=50               # gate: base SWE-bench number
 make baseline-terminal TB_LIMIT=25        # gate: base Terminal-Bench number
-make data DATA_ARGS="--max-examples 8000" # Stage-1 SWE   -> sft_resolved.jsonl + rebuilds sft_train.jsonl
+make data DATA_ARGS="--max-per-source 8000" # Stage-1 SWE  -> sft_resolved.jsonl + rebuilds sft_train.jsonl
 make data-terminal                        # Stage-2 term  -> sft_terminal.jsonl + rebuilds sft_train.jsonl
 make sft                                  # trains on data/sft_train.jsonl (mix, no config edit needed)
 make eval EVAL_LIMIT=50                   # measure the delta (same harness!)
@@ -103,7 +104,7 @@ make baseline-terminal BASE=qwen36 TB_LIMIT=25
 #    - vLLM>=0.17.0 + recent transformers installed
 #    - python -c "...named_modules()" → fill the real DeltaNet LoRA target names
 #    - decide MTP/packing + thinking-mode
-make data DATA_ARGS="--max-examples 3000" # small verified-only mix
+make data DATA_ARGS="--max-per-source 3000" # small verified-only mix
 make sft BASE=qwen36                       # LIGHT SFT (config/qwen36_35b_a3b_qlora.stub.yaml)
 make eval BASE=qwen36 EVAL_LIMIT=50
 # 2. Then the real lever: verifier + best-of-N + GRPO/RFT on executable envs.

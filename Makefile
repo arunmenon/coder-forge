@@ -1,7 +1,7 @@
 # Phase runner for the local agentic-coding fine-tune pipeline.
 # Switch base model family with BASE=qwen30 (default) or BASE=qwen36.
 # Override knobs inline, e.g.:  make baseline EVAL_LIMIT=50  /  make sft BASE=qwen36
-.PHONY: help baseline baseline-terminal data data-terminal sft eval eval-terminal quantize serve-cloud serve-mac
+.PHONY: help baseline baseline-terminal data data-terminal sft eval eval-terminal quantize serve-cloud serve-mac clean
 
 PYTHON ?= python3
 BASE   ?= qwen30
@@ -21,10 +21,9 @@ endif
 EVAL_LIMIT ?= 50
 TB_LIMIT   ?= 25
 
-# Rebuild the canonical training file from whichever stage files exist (no config edit).
+# Rebuild the canonical training file: cross-stage dedup + manifest, errors if no stage files.
 define build_train
-	@cat $$(ls data/sft_resolved.jsonl data/sft_terminal.jsonl 2>/dev/null) > data/sft_train.jsonl \
-	  && echo ">> built data/sft_train.jsonl ($$(wc -l < data/sft_train.jsonl) rows)"
+	@PYTHON=$(PYTHON) bash scripts/build_train.sh data/sft_train.jsonl
 endef
 
 help:
@@ -69,3 +68,8 @@ serve-cloud:
 
 serve-mac:
 	PYTHON=$(PYTHON) bash serve/serve_mlx_mac.sh $(MLX_DIR)
+
+clean:
+	rm -f data/sft_train.jsonl data/*.manifest.json
+	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+	@echo "cleaned sft_train.jsonl + manifests + __pycache__ (stage files data/sft_{resolved,terminal}.jsonl kept)"

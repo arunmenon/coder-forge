@@ -7,10 +7,13 @@ set -euo pipefail
 
 PYTHON="${PYTHON:-python3}"
 CONFIG="${CONFIG:-config/qwen3_coder_30b_qlora.yaml}"
-# Derive the adapter dir from the config's own output_dir so it matches what Axolotl writes
-# (per base family). Override with OUTPUT_DIR=... ; MERGED_DIR defaults next to it.
-OUTPUT_DIR="${OUTPUT_DIR:-$(grep -E '^output_dir:[[:space:]]' "$CONFIG" | head -1 | awk '{print $2}')}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/qlora}"
+# Derive the adapter dir from the config's own output_dir (real YAML parse — M9; a grep
+# miss must NOT fall back to a path that mismatches what Axolotl writes). Override via OUTPUT_DIR=.
+if [[ -z "${OUTPUT_DIR:-}" ]]; then
+  OUTPUT_DIR=$($PYTHON -c 'import yaml,sys; print(yaml.safe_load(open(sys.argv[1]))["output_dir"])' "$CONFIG") \
+    || { echo "ERROR: could not parse output_dir from $CONFIG" >&2; exit 1; }
+fi
+[[ -n "$OUTPUT_DIR" ]] || { echo "ERROR: empty output_dir in $CONFIG" >&2; exit 1; }
 MERGED_DIR="${MERGED_DIR:-${OUTPUT_DIR%-qlora}-merged}"
 
 if [[ ! -f data/sft_train.jsonl ]]; then
