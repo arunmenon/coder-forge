@@ -6,6 +6,7 @@ render) resolves through this, so adding a family is one profile file. See docs/
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -100,7 +101,11 @@ def doctor(family: str) -> int:
     if not targets:
         problems.append("train.lora.target_modules is empty")
     if p["status"] == "stub":
-        warnings.append("status=stub — verify tooling + re-derive LoRA targets from named_modules() before a real run")
+        if os.environ.get("ALLOW_STUB") == "1":
+            warnings.append("status=stub overridden by ALLOW_STUB=1 — verify tooling + LoRA targets first")
+        else:
+            problems.append("status=stub — refusing to proceed (verify tooling + re-derive LoRA targets "
+                            "from named_modules(), then set ALLOW_STUB=1 to override)")
     if arch.get("linear_attention") and lora.get("target_strategy") != "hybrid_linear_attention":
         warnings.append("linear_attention set but target_strategy is not hybrid_linear_attention")
 

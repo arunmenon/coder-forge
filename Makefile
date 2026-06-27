@@ -14,7 +14,13 @@ fam = PYTHON=$(PYTHON) bash scripts/family.sh
 BASE_MODEL := $(shell $(fam) get $(FAMILY) base_model)
 MERGED_DIR := $(shell $(fam) get $(FAMILY) paths.merged_dir)
 MLX_DIR    := $(shell $(fam) get $(FAMILY) paths.mlx_dir)
+CODEC      := $(shell $(fam) get $(FAMILY) tool_call.codec)
 CONFIG     := config/.generated/$(FAMILY).yaml
+
+# Fatal guard: empty BASE_MODEL means the family didn't resolve (unknown id or missing PyYAML).
+ifeq ($(strip $(BASE_MODEL)),)
+$(error could not resolve FAMILY='$(FAMILY)' — unknown family or missing PyYAML; run: bash scripts/family.sh list)
+endif
 
 EVAL_LIMIT ?= 50
 TB_LIMIT   ?= 25
@@ -51,11 +57,11 @@ baseline-terminal eval-terminal:
 	FAMILY=$(FAMILY) DEFAULT_MODEL_NAME=$(BASE_MODEL) TB_LIMIT=$(TB_LIMIT) bash eval/run_terminalbench.sh
 
 data:
-	$(PYTHON) data/prepare_swe_sft.py --output data/sft_resolved.jsonl $(DATA_ARGS)
+	$(PYTHON) data/prepare_swe_sft.py --output data/sft_resolved.jsonl --codec $(CODEC) $(DATA_ARGS)
 	$(build_train)
 
 data-terminal:
-	$(PYTHON) data/prepare_terminal_sft.py --output data/sft_terminal.jsonl $(TERMINAL_ARGS)
+	$(PYTHON) data/prepare_terminal_sft.py --output data/sft_terminal.jsonl --codec $(CODEC) $(TERMINAL_ARGS)
 	$(build_train)
 
 sft: config doctor

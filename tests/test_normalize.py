@@ -36,6 +36,22 @@ def test_h1_empty_string_arguments_become_empty_dict():
     assert calls[0]["function"]["arguments"] == {}
 
 
+def test_h1_list_arguments_dropped():
+    # valid JSON but NOT a mapping — Qwen's template iterates args as a dict.
+    calls, dropped = canonicalize_tool_calls(_tc("[1, 2]"))
+    assert dropped == 1 and calls is None
+
+
+def test_h1_scalar_arguments_dropped():
+    calls, dropped = canonicalize_tool_calls(_tc("42"))
+    assert dropped == 1 and calls is None
+
+
+def test_h1_missing_arguments_become_empty_dict():
+    calls, dropped = canonicalize_tool_calls([{"function": {"name": "f"}}])
+    assert dropped == 0 and calls[0]["function"]["arguments"] == {}
+
+
 def test_h1_in_full_trajectory_preserves_dict_args():
     traj = [
         {"role": "user", "content": "fix it"},
@@ -94,6 +110,11 @@ def test_m6_structured_assistant_content_flattened():
 
 def test_m6_flatten_plain_string():
     assert flatten_content("plain") == "plain"
+
+
+def test_m6_dict_content_text_extracted():
+    msgs, n, _ = to_openai_messages([{"role": "assistant", "content": {"text": "hi"}}])
+    assert msgs[0]["content"] == "hi" and "{" not in msgs[0]["content"]
 
 
 # --- ShareGPT mapping ---

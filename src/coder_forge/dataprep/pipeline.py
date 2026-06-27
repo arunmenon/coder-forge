@@ -17,6 +17,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .codecs import apply_codec
 from .normalize import to_openai_messages
 from .sources import is_training_split, resolve
 
@@ -36,6 +37,8 @@ class PrepOptions:
     streaming: bool = True
     allow_unverified: bool = False
     append: bool = False
+    codec: str = "qwen3_xml_dict"
+    allow_empty_source: bool = False
 
 
 @dataclass
@@ -45,6 +48,8 @@ class PrepResult:
     skipped: dict
     dropped_tool_calls: int
     source_ids: list
+    missing_instance_id_kept: int = 0
+    decontam_id_count: int = 0
 
 
 def _load(dataset_id, config=None, streaming=True):
@@ -102,43 +107,45 @@ def seed_state(output: Path):
 
 def curate_row(row, spec, opts, eval_ids, seen, per_instance):
     """Apply the full curation pipeline to one row.
-    Returns (keep: bool, messages|None, skip_reason|None, dropped_tool_calls)."""
+    Returns (keep, messages|None, skip_reason|None, dropped_tool_calls, undecontaminated)."""
     if spec.resolved_field and not bool(row.get(spec.resolved_field)):
-        return False, None, "unresolved", 0
+        return False, None, "unresolved", 0, False
 
     raw_id = row.get(spec.instance_field)
     instance_id = str(raw_id) if raw_id not in (None, "") else None
+    undecontaminated = False
 
     if opts.decontaminate and eval_ids:
         if instance_id is None:
             if opts.require_instance_id:
-                return False, None, "no_instance_id", 0
-            # else: cannot decontaminate this row — recorded by caller via a skip bucket? keep but flag
+                return False, None, "no_instance_id", 0, False
+            undecontaminated = True  # H5: kept but un-decontaminable — surfaced + counted by caller
         elif instance_id in eval_ids:
-            return False, None, "contaminated", 0
+            return False, None, "contaminated", 0, False
 
     if opts.max_per_instance and instance_id and per_instance[instance_id] >= opts.max_per_instance:
-        return False, None, "over_per_instance_cap", 0
+        return False, None, "over_per_instance_cap", 0, False
 
     messages = row.get(spec.messages_field)
     if not isinstance(messages, list):
-        return False, None, "malformed", 0
+        return False, None, "malformed", 0, False
 
     norm, n_assistant, dropped = to_openai_messages(messages, spec.fmt, opts.max_chars)
     if norm is None:
-        return False, None, "no_assistant", dropped
+        return False, None, "no_assistant", dropped, False
     if n_assistant < opts.min_steps:
-        return False, None, "too_short", dropped
+        return False, None, "too_short", dropped, False
     if opts.max_steps and n_assistant > opts.max_steps:
-        return False, None, "too_long", dropped
+        return False, None, "too_long", dropped, False
 
+    norm = apply_codec(norm, opts.codec)  # family-specific tool-call shaping
     h = content_hash(norm)
     if h in seen:
-        return False, None, "dup", dropped
+        return False, None, "dup", dropped, False
     seen.add(h)
     if instance_id:
         per_instance[instance_id] += 1
-    return True, norm, None, dropped
+    return True, norm, None, dropped, undecontaminated
 
 
 def run_prep(source_ids, output: Path, opts: PrepOptions) -> PrepResult:
@@ -147,41 +154,67 @@ def run_prep(source_ids, output: Path, opts: PrepOptions) -> PrepResult:
                 if opts.decontaminate else set())
     if eval_ids:
         print(f"Decontaminating against {len(eval_ids)} eval instance_ids", file=sys.stderr)
+    if opts.append and opts.max_per_instance:
+        print("WARNING: --append cannot re-tally per-instance counts from the existing file; "
+              "--max-per-instance only applies within this run.", file=sys.stderr)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     seen, per_instance = seed_state(output) if opts.append else (set(), Counter())
-    written, dropped_total = 0, 0
-    per_source: dict = {}
+    written = dropped_total = missing_id_kept = 0
+    per_source: Counter = Counter()
     skipped: Counter = Counter()
 
+    def rows_of(spec):
+        for _split, ds in iter_source_rows(spec, opts.streaming):
+            for row in ds:
+                yield row
+
+    # H3: ROUND-ROBIN across sources (one raw row per source per pass) so --max-total and the
+    # mix don't skew to whichever source is listed first. Per-source caps + exhaustion drop a
+    # source from the rotation.
+    rotation = [(spec, rows_of(spec)) for spec in specs]
     with output.open("a" if opts.append else "w", encoding="utf-8") as fh:
-        for spec in specs:
-            source_count = 0
-            stop = False
-            for _split, ds in iter_source_rows(spec, opts.streaming):
-                for row in ds:
-                    keep, payload, reason, dropped = curate_row(row, spec, opts, eval_ids, seen, per_instance)
-                    dropped_total += dropped
-                    if not keep:
-                        skipped[reason] += 1
-                        continue
+        while rotation:
+            survivors = []
+            progressed = False
+            for spec, it in rotation:
+                if opts.max_per_source and per_source[spec.dataset_id] >= opts.max_per_source:
+                    continue  # this source has met its quota
+                try:
+                    row = next(it)
+                except StopIteration:
+                    continue  # exhausted
+                progressed = True
+                survivors.append((spec, it))
+                keep, payload, reason, dropped, undecon = curate_row(
+                    row, spec, opts, eval_ids, seen, per_instance)
+                dropped_total += dropped
+                if keep:
                     fh.write(json.dumps({"messages": payload}, ensure_ascii=False) + "\n")
                     written += 1
-                    source_count += 1
-                    if opts.max_per_source and source_count >= opts.max_per_source:
-                        stop = True
-                        break
-                    if opts.max_total and written >= opts.max_total:
-                        stop = True
-                        break
-                if stop:
+                    per_source[spec.dataset_id] += 1
+                    if undecon:
+                        missing_id_kept += 1
+                else:
+                    skipped[reason] += 1
+                if opts.max_total and written >= opts.max_total:
+                    survivors, progressed = [], False
                     break
-            per_source[spec.dataset_id] = source_count
-            if source_count == 0:
-                print(f"WARNING: source {spec.dataset_id} contributed 0 rows "
-                      f"(check filters/caps/availability)", file=sys.stderr)
+            rotation = survivors
+            if not progressed:
+                break
 
-    return PrepResult(written, per_source, dict(skipped), dropped_total, [s.dataset_id for s in specs])
+    for spec in specs:
+        per_source.setdefault(spec.dataset_id, 0)
+    empty = [s.dataset_id for s in specs if per_source[s.dataset_id] == 0]
+    if empty and not opts.allow_empty_source:
+        raise SystemExit(
+            f"ERROR: these requested sources contributed 0 rows: {empty}. "
+            f"Check filters/caps/availability, or pass --allow-empty-source. "
+            f"(skipped reasons: {dict(skipped)})")
+
+    return PrepResult(written, dict(per_source), dict(skipped), dropped_total,
+                      [s.dataset_id for s in specs], missing_id_kept, len(eval_ids))
 
 
 def write_manifest(output: Path, result: PrepResult, opts: PrepOptions, argv) -> Path:
@@ -204,6 +237,9 @@ def write_manifest(output: Path, result: PrepResult, opts: PrepOptions, argv) ->
         "skipped": result.skipped,
         "dropped_tool_calls": result.dropped_tool_calls,
         "decontaminate": opts.decontaminate,
+        "decontam_id_count": result.decontam_id_count,
+        "missing_instance_id_kept": result.missing_instance_id_kept,
+        "codec": opts.codec,
         "sha256": sha256,
     }
     path = Path(str(output) + ".manifest.json")

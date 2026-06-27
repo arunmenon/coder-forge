@@ -32,6 +32,10 @@ def build_parser(kind: str) -> argparse.ArgumentParser:
     p.add_argument("--decontaminate-split", default="test")
     p.add_argument("--require-instance-id", action="store_true",
                    help="Drop rows lacking instance_id when decontaminating (default: keep + count).")
+    p.add_argument("--codec", default="qwen3_xml_dict",
+                   help="Tool-call codec — the family's tool_call.codec (qwen3_xml_dict | openai_string).")
+    p.add_argument("--allow-empty-source", action="store_true",
+                   help="Do not error when a requested source contributes 0 rows.")
     p.add_argument("--no-streaming", action="store_true", help="Disable streaming (download full splits).")
     p.add_argument("--no-manifest", action="store_true")
     p.add_argument("--inspect", metavar="DATASET_ID", help="Print a source's schema + first example, exit.")
@@ -67,6 +71,8 @@ def options_from_args(args) -> PrepOptions:
         streaming=not args.no_streaming,
         allow_unverified=args.allow_unverified,
         append=args.append,
+        codec=args.codec,
+        allow_empty_source=args.allow_empty_source,
     )
 
 

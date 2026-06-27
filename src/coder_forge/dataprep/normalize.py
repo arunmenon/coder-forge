@@ -47,7 +47,13 @@ def flatten_content(content) -> str:
                 elif block.get("type"):
                     parts.append(f"[{block['type']}]")
         return "\n".join(p for p in parts if p)
-    # dict or other: last-resort serialize (acceptable for non-assistant observations).
+    if isinstance(content, dict):
+        # Common shapes: {"text": "..."} or {"content": "..."}. Prefer the text field over
+        # json.dumps so an assistant turn isn't trained to emit a literal JSON object.
+        for key in ("text", "content"):
+            if isinstance(content.get(key), str):
+                return content[key]
+    # last-resort serialize (acceptable for non-assistant observations).
     return json.dumps(content, ensure_ascii=False)
 
 
@@ -58,18 +64,29 @@ def canonicalize_tool_calls(tool_calls):
         return None, 0
     out, dropped = [], 0
     for tc in tool_calls:
-        if not isinstance(tc, dict):
+        if not isinstance(tc, dict) or not isinstance(tc.get("function"), dict):
             dropped += 1
             continue
-        fn = tc.get("function")
-        if isinstance(fn, dict) and isinstance(fn.get("arguments"), str):
-            raw = fn["arguments"].strip()
+        fn = tc["function"]
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            raw = args.strip()
             try:
                 parsed = json.loads(raw) if raw else {}
             except (json.JSONDecodeError, ValueError):
                 dropped += 1
                 continue
+            if not isinstance(parsed, dict):  # H1: args must be a MAPPING (Qwen iterates it as one)
+                dropped += 1
+                continue
             tc = {**tc, "function": {**fn, "arguments": parsed}}
+        elif isinstance(args, dict):
+            pass  # already canonical
+        elif args is None:
+            tc = {**tc, "function": {**fn, "arguments": {}}}
+        else:  # list / scalar — not a mapping
+            dropped += 1
+            continue
         out.append(tc)
     return (out or None), dropped
 

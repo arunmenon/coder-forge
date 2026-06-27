@@ -24,6 +24,7 @@ gradient_accumulation_steps: 16
 optimizer: adamw_torch_fused
 lr_scheduler: cosine
 warmup_ratio: 0.03
+weight_decay: 0.0
 max_grad_norm: 1.0
 
 bf16: true

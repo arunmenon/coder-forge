@@ -16,9 +16,12 @@ MODEL="${1:-$BASE_MODEL}"
 PORT="${PORT:-8000}"
 
 # Assert the family's minimum vLLM, when declared (qwen36 needs >=0.17.0 for the DeltaNet arch).
+# Fail closed: missing or unparsable vLLM is an error, not a silent pass.
 if [[ -n "${MIN_VLLM:-}" ]]; then
+  command -v vllm >/dev/null || { echo "ERROR: family $FAMILY needs vLLM >= $MIN_VLLM but 'vllm' is not installed" >&2; exit 1; }
   have=$(vllm --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
-  if [[ -n "$have" ]] && [[ "$(printf '%s\n%s\n' "$MIN_VLLM" "$have" | sort -V | head -1)" != "$MIN_VLLM" ]]; then
+  [[ -n "$have" ]] || { echo "ERROR: could not determine vLLM version (need >= $MIN_VLLM)" >&2; exit 1; }
+  if [[ "$(printf '%s\n%s\n' "$MIN_VLLM" "$have" | sort -V | head -1)" != "$MIN_VLLM" ]]; then
     echo "ERROR: family $FAMILY needs vLLM >= $MIN_VLLM, found $have" >&2; exit 1
   fi
 fi
